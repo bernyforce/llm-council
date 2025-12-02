@@ -1,24 +1,23 @@
 FROM python:3.11-slim
 
-# Définir le répertoire de travail
 WORKDIR /app
 
-# Installer les dépendances système nécessaires
+# Installer les dépendances système
 RUN apt-get update && apt-get install -y \
     git \
     && rm -rf /var/lib/apt/lists/*
 
-# Installer uv (gestionnaire de paquets Python moderne)
-RUN pip install uv
-
-# Copier tous les fichiers du projet
+# Copier les fichiers
 COPY . .
 
-# Installer les dépendances Python avec uv
-RUN uv sync --frozen
+# Installer directement avec pip (plus fiable)
+RUN pip install streamlit openai anthropic google-generativeai
 
-# Exposer le port 8000
+# Installer les autres dépendances depuis requirements.txt si il existe
+RUN if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+# Port pour Streamlit  
 EXPOSE 8000
 
-# Commande de démarrage
-CMD ["uv", "run", "streamlit", "run", "app.py", "--server.port=8000", "--server.address=0.0.0.0"]
+# Lancer directement avec python
+CMD ["streamlit", "run", "app.py", "--server.port=8000", "--server.address=0.0.0.0"]
