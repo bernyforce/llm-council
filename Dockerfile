@@ -1,21 +1,16 @@
-FROM python:3.11-slim
-
+FROM node:18 AS frontend-build
 WORKDIR /app
+COPY frontend/package*.json ./
+RUN npm install
+COPY frontend/ ./
+RUN npm run build
 
-# Installer les dépendances système
-RUN apt-get update && apt-get install -y git curl && rm -rf /var/lib/apt/lists/*
-
-# Installer uv
+FROM python:3.11-slim
+WORKDIR /app
+RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
 RUN pip install uv
-
-# Copier les fichiers
 COPY . .
-
-# Installer les dépendances Python
 RUN uv sync --frozen
-
-# Port pour FastAPI
-EXPOSE 8000
-
-# Lancer le backend FastAPI
+COPY --from=frontend-build /app/dist /app/frontend/dist
+EXPOSE 8001
 CMD ["uv", "run", "python", "-m", "backend.main"]
