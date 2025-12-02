@@ -193,6 +193,17 @@ async def send_message_stream(conversation_id: str, request: SendMessageRequest)
         }
     )
 
+# Servir le frontend build
+import os
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+
+if os.path.exists("frontend/dist"):
+    app.mount("/assets", StaticFiles(directory="frontend/dist/assets"), name="static")
+    
+    @app.get("/", response_class=FileResponse)
+    async def serve_frontend():
+        return FileResponse("frontend/dist/index.html")
 
 if __name__ == "__main__":
     import uvicorn
