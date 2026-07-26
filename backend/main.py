@@ -4,10 +4,11 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import uuid
 import json
 import asyncio
+import time
 
 from . import storage
 from .council import run_full_council, generate_conversation_title, stage1_collect_responses, stage2_collect_rankings, stage3_synthesize_final, calculate_aggregate_rankings
@@ -34,6 +35,17 @@ class SendMessageRequest(BaseModel):
     content: str
 
 
+class OpenAIChatMessage(BaseModel):
+    role: str
+    content: str
+
+
+class OpenAIChatRequest(BaseModel):
+    model: str = "llm-council"
+    messages: List[OpenAIChatMessage]
+    stream: bool = False
+
+
 class ConversationMetadata(BaseModel):
     """Conversation metadata for list view."""
     id: str
@@ -54,6 +66,83 @@ class Conversation(BaseModel):
 async def root():
     """Health check endpoint."""
     return {"status": "ok", "service": "LLM Council API"}
+
+
+@app.get("/health")
+async def health():
+    return {"status": "healthy", "service": "llm-council", "version": "1.0"}
+
+
+@app.post("/v1/chat/completions")
+async def openai_chat_completions(request: OpenAIChatRequest):
+    user_query = next(
+        (m.content for m in reversed(request.messages) if m.role == "user"),
+        None
+    )
+    if not user_query:
+        raise HTTPException(status_code=400, detail="No user message found")
+
+    completion_id = f"chatcmpl-{uuid.uuid4().hex[:12]}"
+
+    if request.stream:
+        async def stream_generator():
+            try:
+                stage1_results, stage2_results, stage3_result, metadata = await run_full_council(user_query)
+                content = stage3_result.get("response", "") if isinstance(stage3_result, dict) else str(stage3_result)
+
+                chunk_size = 30
+                for i in range(0, len(content), chunk_size):
+                    event = {
+                        "id": completion_id,
+                        "object": "chat.completion.chunk",
+                        "choices": [{"index": 0, "delta": {"content": content[i:i + chunk_size]}, "finish_reason": None}]
+                    }
+                    yield f"data: {json.dumps(event)}\n\n"
+
+                final_event = {
+                    "id": completion_id,
+                    "object": "chat.completion.chunk",
+                    "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
+                    "council_metadata": {
+                        "stage1": stage1_results,
+                        "rankings": stage2_results,
+                        "synthesis_metadata": metadata
+                    }
+                }
+                yield f"data: {json.dumps(final_event)}\n\n"
+                yield "data: [DONE]\n\n"
+            except Exception as e:
+                yield f"data: {json.dumps({'error': {'message': str(e), 'type': 'server_error'}})}\n\n"
+
+        return StreamingResponse(
+            stream_generator(),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "Connection": "keep-alive"}
+        )
+
+    stage1_results, stage2_results, stage3_result, metadata = await run_full_council(user_query)
+    content = stage3_result.get("response", "") if isinstance(stage3_result, dict) else str(stage3_result)
+    return {
+        "id": completion_id,
+        "object": "chat.completion",
+        "created": int(time.time()),
+        "model": request.model,
+        "choices": [{
+            "index": 0,
+            "message": {"role": "assistant", "content": content},
+            "finish_reason": "stop"
+        }],
+        "usage": {
+            "prompt_tokens": len(user_query.split()),
+            "completion_tokens": len(content.split()),
+            "total_tokens": len(user_query.split()) + len(content.split())
+        },
+        "council_metadata": {
+            "stage1": stage1_results,
+            "rankings": stage2_results,
+            "synthesis_metadata": metadata
+        }
+    }
 
 
 @app.get("/api/conversations", response_model=List[ConversationMetadata])
