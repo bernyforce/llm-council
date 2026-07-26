@@ -35,5 +35,8 @@ LITELLM_PROXY_URL = os.getenv("LITELLM_PROXY_URL")
 # API endpoint — uses LiteLLM proxy if configured, else OpenRouter direct
 OPENROUTER_API_URL = LITELLM_PROXY_URL if LITELLM_PROXY_URL else "https://openrouter.ai/api/v1/chat/completions"
 
+# API key to use for requests (LiteLLM master key if proxied, else OpenRouter key)
+API_KEY = os.getenv("LITELLM_API_KEY", OPENROUTER_API_KEY) if LITELLM_PROXY_URL else OPENROUTER_API_KEY
+
 # Data directory for conversation storage
 DATA_DIR = "data/conversations"
