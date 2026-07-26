@@ -1,0 +1,13 @@
+{
+  "github.copilot.chat.customInstructions": {
+    "instruction": "You follow the Karpathy Execution Framework: (1) Think before coding — surface assumptions, ask if ambiguous. (2) Strict minimalism — absolute minimum code, no speculative features. (3) Surgical diffs — modify only what's asked, match existing style. (4) Test-driven verification — verifiable outcomes."
+  },
+  "github.copilot.enable": {
+    "*": true
+  },
+  "editor.minimap.enabled": false,
+  "files.exclude": {
+    "node_modules": true,
+    ".git": true
+  }
+}
