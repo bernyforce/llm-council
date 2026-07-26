@@ -1,22 +1,33 @@
 """Configuration for the LLM Council."""
 
 import os
+import json
 from dotenv import load_dotenv
 
 load_dotenv()
 
 # OpenRouter API key
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 
 # Council members - list of OpenRouter model identifiers
-COUNCIL_MODELS = [
+# Override via COUNCIL_MODELS env var as JSON array
+DEFAULT_COUNCIL_MODELS = [
     "anthropic/claude-sonnet-4.5",
-    "deepseek/deepseek-chat",
+    "deepseek/deepseek-chat-v3.1",
     "openai/gpt-5.1",
 ]
+env_models = os.getenv("COUNCIL_MODELS")
+if env_models:
+    try:
+        COUNCIL_MODELS = json.loads(env_models)
+    except json.JSONDecodeError:
+        COUNCIL_MODELS = DEFAULT_COUNCIL_MODELS
+else:
+    COUNCIL_MODELS = DEFAULT_COUNCIL_MODELS
 
 # Chairman model - synthesizes final response
-CHAIRMAN_MODEL = "google/gemini-3-pro-preview"
+DEFAULT_CHAIRMAN_MODEL = "google/gemini-3-pro-image"
+CHAIRMAN_MODEL = os.getenv("CHAIRMAN_MODEL", DEFAULT_CHAIRMAN_MODEL)
 
 # LiteLLM proxy URL (optional) — overrides OpenRouter when set
 LITELLM_PROXY_URL = os.getenv("LITELLM_PROXY_URL")
