@@ -11,6 +11,7 @@ import asyncio
 import time
 
 from . import storage
+from .config import COUNCIL_MODELS, CHAIRMAN_MODEL
 from .council import run_full_council, generate_conversation_title, stage1_collect_responses, stage2_collect_rankings, stage3_synthesize_final, calculate_aggregate_rankings
 
 app = FastAPI(title="LLM Council API")
@@ -62,6 +63,24 @@ class Conversation(BaseModel):
     messages: List[Dict[str, Any]]
 
 
+def build_model_info(model_id):
+    return {
+        "id": model_id,
+        "object": "model",
+        "created": int(time.time()),
+        "owned_by": "bernyforce",
+    }
+
+
+def models_list():
+    all_models = COUNCIL_MODELS + [CHAIRMAN_MODEL] + ["llm-council"]
+    return {
+        "object": "list",
+        "data": [build_model_info(model_id) for model_id in all_models],
+    }
+
+
+
 @app.get("/")
 async def root():
     """Health check endpoint."""
@@ -71,6 +90,19 @@ async def root():
 @app.get("/health")
 async def health():
     return {"status": "healthy", "service": "llm-council", "version": "1.0"}
+
+
+@app.get("/v1/models")
+async def openai_models_list():
+    return models_list()
+
+
+@app.get("/v1/models/{model_id:path}")
+async def openai_model_info(model_id: str):
+    all_models = COUNCIL_MODELS + [CHAIRMAN_MODEL] + ["llm-council"]
+    if model_id not in all_models:
+        raise HTTPException(status_code=404, detail="Model not found")
+    return build_model_info(model_id)
 
 
 @app.post("/v1/chat/completions")
